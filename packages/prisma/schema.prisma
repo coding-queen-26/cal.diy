@@ -2849,3 +2849,53 @@ model AttributeSyncFieldMapping {
   @@unique([integrationAttributeSyncId, attributeId])
   @@index([integrationAttributeSyncId])
 }
+
+// Append to packages/prisma/schema.prisma
+
+model ClientProfile {
+  id          String        @id @default(uuid())
+  userId      String?       @unique // Connects to Cal.diy's native User table
+  firstName   String
+  lastName    String
+  email       String        @unique
+  phone       String?
+  credits     Int           @default(0) // Tracks remaining laser sessions
+  notes       String?       // Skin type, laser settings, patch test notes
+  appointments ClientAppointment[]
+  ledger      AccountingLedger[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model LaserPackage {
+  id           String        @id @default(uuid())
+  name         String        // e.g., "Full Legs - 6 Sessions"
+  description  String?
+  sessionCount Int           // Total sessions granted by this package
+  price        Decimal       @db.Decimal(10, 2)
+  ledgerRows   AccountingLedger[]
+}
+
+model ClientAppointment {
+  id              String        @id @default(uuid())
+  bookingId       String        @unique // Connects directly to Cal.diy's native 'Booking' table
+  clientProfileId String
+  status          String        @default("PENDING") // PENDING, ATTENDED, NO_SHOW
+  energySetting   String?       // e.g., "Joules/cm² used"
+  pulseDuration   String?       // e.g., "ms"
+  
+  client          ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
+}
+
+model AccountingLedger {
+  id              String        @id @default(uuid())
+  clientProfileId String
+  packageId       String?
+  transactionType String        // "PURCHASE" (adds credits) or "USAGE" (deducts credits)
+  amount          Decimal       @db.Decimal(10, 2) 
+  creditsChanged  Int           // e.g., +6 or -1
+  createdAt       DateTime      @default(now())
+
+  client          ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
+  package         LaserPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+}
